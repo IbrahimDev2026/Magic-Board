@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Magic Board: a drawing board with a toolbar, menus, undo and a trace game. HMI PW2, L3 Computer Science, Biskra University.">
+<meta name="theme-color" content="#0b6e7f">
+<title>Magic Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%2315222c'/%3E%3Cpath d='M8 28c4-11 8 2 12-7s6-3 11-7' fill='none' stroke='%235fd0dd' stroke-width='3.4' stroke-linecap='round'/%3E%3Cpath d='M29 5l1.4 3.2 3.2 1.4-3.2 1.4L29 14.2l-1.4-3.2-3.2-1.4 3.2-1.4z' fill='%23ffb703'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<noscript><p style="padding:24px">Magic Board needs JavaScript. Please enable it and reload.</p></noscript>
+
+<!-- ZONE 1: MENU BAR -->
+<header class="menubar">
+  <div class="brand">
+    <svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#15222c"/><path d="M8 28c4-11 8 2 12-7s6-3 11-7" fill="none" stroke="#5fd0dd" stroke-width="3.4" stroke-linecap="round"/><path d="M29 5l1.4 3.2 3.2 1.4-3.2 1.4L29 14.2l-1.4-3.2-3.2-1.4 3.2-1.4z" fill="#ffb703"/></svg>
+    <span class="brand-name">Magic Board</span>
+  </div>
+  <nav class="menus" role="menubar">
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="file"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="open" data-i="open"><span data-t="openDrawing"></span><kbd>Ctrl+O</kbd></button>
+      <button role="menuitem" data-act="save" data-i="save"><span data-t="savePNG"></span><kbd>Ctrl+S</kbd></button>
+      <button role="menuitem" data-act="project" data-i="save"><span data-t="saveProject"></span></button><hr>
+      <button role="menuitem" data-act="copy" data-i="copy"><span data-t="copyImage"></span></button>
+      <button role="menuitem" data-act="share" data-i="share"><span data-t="share"></span></button></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="shapes"></button><div class="dropdown" id="menu-shapes" role="menu"></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="colors"></button><div class="dropdown" id="menu-colors" role="menu"></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="delete"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="undo" data-i="undo"><span data-t="undo"></span><kbd>Ctrl+Z</kbd></button>
+      <button role="menuitem" data-act="redo" data-i="redo"><span data-t="redo"></span><kbd>Ctrl+Y</kbd></button><hr>
+      <button role="menuitem" data-act="clear" data-i="trash" class="danger-item"><span data-t="clearBoard"></span></button></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="exit"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="save" data-i="save"><span data-t="saveDrawing"></span><kbd>Ctrl+S</kbd></button>
+      <button role="menuitem" data-act="exit" data-i="exit"><span data-t="exitCmd"></span><kbd>Ctrl+Q</kbd></button></div></div>
+  </nav>
+  <span class="spacer"></span>
+  <select id="lang" aria-label="Language" title="Language"><option value="en">English</option><option value="ar">العربية</option><option value="fr">Français</option></select>
+  <button class="pill" data-act="open" data-i="open" data-k="Ctrl+O"><span data-t="open"></span></button>
+  <button class="pill primary" data-act="save" data-i="save" data-k="Ctrl+S"><span data-t="save"></span></button>
+  <button class="round" data-act="notes" data-i="notes" data-tt="notes"></button>
+  <button class="round" data-act="help" data-i="help" data-tt="guide" data-k="?"></button>
+  <button class="round" data-act="full" data-i="full" data-tt="fullscreen"></button>
+  <button class="round" data-act="theme" data-i="moon" data-tt="theme"></button>
+</header>
+
+<div class="main">
+  <!-- ZONE 2: TOOLBAR -->
+  <aside class="toolbar" aria-label="Toolbar">
+    <section class="grp"><h2 data-t="draw"></h2><div class="grid" id="tb-draw"></div></section>
+    <section class="grp"><h2 data-t="shapes"></h2><div class="grid" id="tb-shapes"></div></section>
+    <section class="grp"><h2 data-t="colors"></h2><div class="swatches" id="tb-colors"></div>
+      <label class="custom"><span data-t="custom"></span><input type="color" id="custom-color" value="#ff6600"></label>
+      <p class="colorname"><span data-t="colorL"></span>: <b id="tb-colorname"></b></p></section>
+    <section class="grp"><h2 data-t="thickness"></h2><div class="grid3" id="tb-size"></div></section>
+    <section class="grp"><h2 data-t="options"></h2><div class="grid">
+      <button class="tool" data-act="fill" data-i="fill" data-k="F"><span data-t="fill"></span></button>
+      <button class="tool" data-act="grid" data-i="grid" data-k="G"><span data-t="grid"></span></button></div></section>
+    <section class="grp"><h2 data-t="history"></h2><div class="grid">
+      <button class="tool" data-act="undo" data-i="undo" data-tt="undo" data-k="Ctrl+Z"><span data-t="undo"></span></button>
+      <button class="tool" data-act="redo" data-i="redo" data-tt="redo" data-k="Ctrl+Y"><span data-t="redo"></span></button></div></section>
+    <section class="grp"><h2 data-t="play"></h2>
+      <button class="tool wide" data-act="trace" data-i="target" data-k="T"><span data-t="trace"></span></button>
+      <button class="tool danger wide" data-act="clear" data-i="trash" data-tt="clearBoard"><span data-t="clearAll"></span></button></section>
+  </aside>
+
+  <!-- ZONE 3: BOARD -->
+  <main class="board">
+    <canvas id="canvas" aria-label="Drawing board"></canvas>
+    <div class="hint" id="hint" aria-hidden="true">
+      <div class="how">
+        <div class="how-step"><span class="bubble" data-i="pen"></span><small data-t="g1t"></small></div>
+        <span class="arrow" data-i="next"></span>
+        <div class="how-step"><span class="bubble" data-i="palette"></span><small data-t="g2t"></small></div>
+        <span class="arrow" data-i="next"></span>
+        <div class="how-step"><span class="bubble" data-i="drag"></span><small data-t="g3t"></small></div>
+      </div>
+      <svg class="squiggle" viewBox="0 0 220 60" width="220"><path d="M6 38c18-34 34 22 54-4s32-20 52-2 34 12 52-8 30-12 50 4" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" pathLength="1"/></svg>
+      <b data-t="hintT"></b><span data-t="hintS"></span>
+    </div>
+    <div class="hud" id="hud" hidden>
+      <div class="hud-text"><b id="hud-title"></b><span id="hud-sub"></span></div>
+      <span class="time" id="hud-time"></span>
+      <div class="bar" aria-hidden="true"><i id="hud-bar"></i></div>
+      <div class="hud-actions">
+        <button class="primary run-only" data-act="gstop" data-i="check" data-t="gStop"></button>
+        <button class="primary done-only" data-act="trace" data-i="target" data-t="gAgain"></button>
+        <button data-act="gclose" data-t="close"></button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ZONE 4: STATUS LINE -->
+<footer class="status">
+  <span id="st-tool" class="chip"></span><span id="st-color" class="chip"></span><span id="st-size" class="chip"></span>
+  <span id="st-hint" class="next"></span>
+  <span id="st-msg" class="msg" role="status" aria-live="polite"></span>
+  <span id="st-count" class="count"></span><span id="st-pos" class="pos" aria-hidden="true"></span>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+<input type="file" id="file" accept=".json,image/*" hidden>
+
+<dialog id="dlg-exit" aria-labelledby="exit-title"><h3 id="exit-title" data-t="exitT"></h3><p data-t="exitD"></p>
+  <div class="actions"><button data-exit="keep" data-t="keep"></button><button data-exit="discard" data-t="discard"></button><button data-exit="save" class="primary" data-t="saveExit" autofocus></button></div></dialog>
+
+<dialog id="dlg-guide" class="wide-dlg"><h3 data-t="guideT"></h3><p class="sub" data-t="guideS"></p>
+  <ol class="steps">
+    <li><b data-t="g1t"></b><span data-t="g1d"></span></li><li><b data-t="g2t"></b><span data-t="g2d"></span></li>
+    <li><b data-t="g3t"></b><span data-t="g3d"></span></li><li><b data-t="g4t"></b><span data-t="g4d"></span></li>
+    <li><b data-t="g5t"></b><span data-t="g5d"></span></li></ol>
+  <div class="two"><div><h4 data-t="keysT"></h4><ul class="keys">
+    <li><kbd>Ctrl+Z</kbd><span data-t="undo"></span></li><li><kbd>Ctrl+Y</kbd><span data-t="redo"></span></li>
+    <li><kbd>Ctrl+S</kbd><span data-t="save"></span></li><li><kbd>Ctrl+O</kbd><span data-t="open"></span></li>
+    <li><kbd>Ctrl+Q</kbd><span data-t="exitCmd"></span></li><li><kbd>P E L R C</kbd><span data-t="keyTools"></span></li>
+    <li><kbd>F</kbd><span data-t="fill"></span></li><li><kbd>G</kbd><span data-t="grid"></span></li>
+    <li><kbd>[ &nbsp;]</kbd><span data-t="thickness"></span></li><li><kbd>T</kbd><span data-t="trace"></span></li></ul></div>
+  <div><h4 data-t="tipsT"></h4><ul class="tips"><li data-t="tip1"></li><li data-t="tip2"></li><li data-t="tip3"></li><li data-t="tip4"></li></ul></div></div>
+  <div class="actions"><button class="primary" data-close data-t="back"></button></div></dialog>
+
+<dialog id="dlg-notes" class="wide-dlg"><h3 data-t="notesT"></h3>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-zones" data-tab="zones" aria-selected="true" aria-controls="panel-zones" data-t="nz"></button>
+    <button role="tab" id="tab-test" data-tab="test" aria-selected="false" aria-controls="panel-test" tabindex="-1" data-t="nt"></button>
+    <button role="tab" id="tab-check" data-tab="check" aria-selected="false" aria-controls="panel-check" tabindex="-1" data-t="nc"></button>
+  </div>
+  <div class="panel" id="panel-zones" role="tabpanel" aria-labelledby="tab-zones">
+    <ul class="zones">
+      <li><span class="zn">1</span><div><b data-t="z1t"></b><span data-t="z1d"></span></div></li>
+      <li><span class="zn">2</span><div><b data-t="z2t"></b><span data-t="z2d"></span></div></li>
+      <li><span class="zn">3</span><div><b data-t="z3t"></b><span data-t="z3d"></span></div></li>
+      <li><span class="zn">4</span><div><b data-t="z4t"></b><span data-t="z4d"></span></div></li>
+    </ul>
+  </div>
+  <div class="panel" id="panel-test" role="tabpanel" aria-labelledby="tab-test" hidden>
+    <p class="sub" data-t="testS"></p>
+    <div class="checks">
+      <label><input type="checkbox" data-chk="k1"><span data-t="k1"></span></label>
+      <label><input type="checkbox" data-chk="k2"><span data-t="k2"></span></label>
+      <label><input type="checkbox" data-chk="k3"><span data-t="k3"></span></label>
+      <label><input type="checkbox" data-chk="k4"><span data-t="k4"></span></label>
+      <label><input type="checkbox" data-chk="k5"><span data-t="k5"></span></label>
+    </div>
+    <small class="prog" data-prog="k"></small>
+    <ul class="rules"><li data-t="r1"></li><li data-t="r2"></li><li data-t="r3"></li></ul>
+    <label class="notes-l" for="notes-text" data-t="notesL"></label>
+    <textarea id="notes-text" rows="3"></textarea>
+  </div>
+  <div class="panel" id="panel-check" role="tabpanel" aria-labelledby="tab-check" hidden>
+    <div class="cols">
+      <div><h4 data-t="cSee"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c1"><span data-t="c1"></span></label>
+        <label><input type="checkbox" data-chk="c2"><span data-t="c2"></span></label>
+        <label><input type="checkbox" data-chk="c3"><span data-t="c3"></span></label>
+        <label><input type="checkbox" data-chk="c4"><span data-t="c4"></span></label></div></div>
+      <div><h4 data-t="cAct"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c5"><span data-t="c5"></span></label>
+        <label><input type="checkbox" data-chk="c6"><span data-t="c6"></span></label>
+        <label><input type="checkbox" data-chk="c7"><span data-t="c7"></span></label>
+        <label><input type="checkbox" data-chk="c8"><span data-t="c8"></span></label></div></div>
+      <div><h4 data-t="cRec"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c9"><span data-t="c9"></span></label>
+        <label><input type="checkbox" data-chk="c10"><span data-t="c10"></span></label>
+        <label><input type="checkbox" data-chk="c11"><span data-t="c11"></span></label>
+        <label><input type="checkbox" data-chk="c12"><span data-t="c12"></span></label></div></div>
+    </div>
+    <small class="prog" data-prog="c"></small>
+  </div>
+  <div class="actions"><button class="primary" data-close data-t="close"></button></div></dialog>
+
+<div class="goodbye" id="goodbye" hidden><h1 data-t="byeT"></h1><p data-t="byeD"></p><button class="primary" id="restart" data-t="restart"></button></div>
+<script src="i18n.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

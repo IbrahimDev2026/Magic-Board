@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Magic Board: a drawing board with a toolbar, menus, undo and a trace game. HMI PW2, L3 Computer Science, Biskra University.">
+<meta name="theme-color" content="#0b6e7f">
+<title>Magic Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%2315222c'/%3E%3Cpath d='M8 28c4-11 8 2 12-7s6-3 11-7' fill='none' stroke='%235fd0dd' stroke-width='3.4' stroke-linecap='round'/%3E%3Cpath d='M29 5l1.4 3.2 3.2 1.4-3.2 1.4L29 14.2l-1.4-3.2-3.2-1.4 3.2-1.4z' fill='%23ffb703'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+/* Magic Board: a desk, a sheet of paper, ink-blue tools and one teal accent.
+   Layout: menu bar on top, tool panel at the left (a strip on phones), the board takes the rest, a dark status line at the bottom.
+   Red is kept for "delete" only (Bastien & Scapin: significance of codes). */
+:root{
+  --desk:#e3eaed; --dots:#c9d4d9; --panel:#f7fafb; --ink:#15222c; --muted:#47565f; --line:#76858f; --soft:#e2e9ec;
+  --accent:#0b6e7f; --on-accent:#ffffff; --sel-bg:#15222c; --sel-fg:#ffffff; --spark:#ffb703; --danger:#b42318;
+  --status:#15222c; --on-status:#f2f7f8; --msg:#ffd166; --shadow:0 10px 28px -10px rgba(21,34,44,.35);
+  --font:"IBM Plex Sans","IBM Plex Sans Arabic","Segoe UI",system-ui,-apple-system,sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --desk:#0e161b; --dots:#1d2a32; --panel:#162128; --ink:#eef4f6; --muted:#b4c3cb; --line:#8091a0; --soft:#22313a;
+  --accent:#5fd0dd; --on-accent:#08242a; --sel-bg:#5fd0dd; --sel-fg:#08242a; --danger:#ff8a80;
+  --status:#0a1114; --on-status:#e8f0f2; --shadow:0 10px 28px -10px rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#0e161b; --dots:#1d2a32; --panel:#162128; --ink:#eef4f6; --muted:#b4c3cb; --line:#8091a0; --soft:#22313a;
+  --accent:#5fd0dd; --on-accent:#08242a; --sel-bg:#5fd0dd; --sel-fg:#08242a; --danger:#ff8a80;
+  --status:#0a1114; --on-status:#e8f0f2; --shadow:0 10px 28px -10px rgba(0,0,0,.7); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;font:15px/1.4 var(--font);background:var(--desk);color:var(--ink);overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.42;cursor:not-allowed}
+.i{width:20px;height:20px;flex-shrink:0}
+kbd{font-family:inherit}
+
+/* ----- zone 1: menu bar ----- */
+.menubar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:20;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-inline-end:12px}
+.logo-mark{width:34px;height:34px}
+.brand-name{font-weight:700;font-size:17px;letter-spacing:-.01em}
+.menus{display:flex;gap:2px}.menu{position:relative}
+.menu-btn{background:none;border:0;border-radius:8px;padding:8px 13px;font-weight:600}
+.menu-btn:hover{background:var(--soft)}
+.menu.open .menu-btn{background:var(--accent);color:var(--on-accent)}
+.spacer{flex:1}
+.pill{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--panel);font-weight:600}
+.pill:hover:not(:disabled),.round:hover:not(:disabled){background:var(--soft)}
+.primary,.pill.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.primary:hover:not(:disabled),.pill.primary:hover:not(:disabled){filter:brightness(1.08);background:var(--accent)}
+.round{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;border:1.5px solid var(--line);background:var(--panel)}
+select#lang{padding:7px 10px;border-radius:999px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+
+.dropdown{display:none;position:absolute;top:calc(100% + 6px);inset-inline-start:0;min-width:236px;background:var(--panel);border:1.5px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;animation:pop .14s}
+.menu.open .dropdown{display:block}
+.dropdown button{display:flex;align-items:center;gap:10px;width:100%;text-align:start;background:none;border:0;border-radius:8px;padding:9px 11px}
+.dropdown button:hover:not(:disabled),.dropdown button:focus-visible{background:var(--soft)}
+.dropdown kbd{margin-inline-start:auto;color:var(--muted);font-size:12px}
+.dropdown hr{border:0;border-top:1px solid var(--soft);margin:5px 0}
+.dropdown .sw{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0}
+.dropdown .sel{font-weight:700;background:var(--soft)}.dropdown .sel::after{content:"✓";margin-inline-start:auto}
+.dropdown .danger-item{color:var(--danger)}
+.menu-custom{display:flex;justify-content:space-between;align-items:center;padding:8px 11px;gap:12px}
+.menu-custom input{width:44px;height:30px;padding:0;border:1.5px solid var(--line);border-radius:6px;background:none}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}}
+
+/* ----- zone 2: toolbar ----- */
+.main{flex:1;display:flex;min-height:0}
+.toolbar{width:208px;padding:2px 14px 14px;background:var(--panel);border-inline-end:1px solid var(--line);overflow-y:auto;flex-shrink:0}
+.grp h2{font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px;letter-spacing:.02em}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.tool{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;padding:6px 4px;background:var(--panel);border:1.5px solid var(--line);border-radius:var(--r);font-size:12.5px;font-weight:600;transition:background .12s,transform .12s}
+.tool:hover:not(:disabled){background:var(--soft)}
+.tool:active:not(:disabled){transform:scale(.96)}
+.tool.sel{background:var(--sel-bg);color:var(--sel-fg);border-color:var(--sel-bg)}
+.tool.sel[data-tool]::after,.tool.sel[data-size]::after{content:"✓";position:absolute;top:-6px;inset-inline-end:-6px;width:18px;height:18px;border-radius:50%;background:var(--spark);color:#15222c;font-size:11px;font-weight:700;display:grid;place-items:center;animation:tick .2s}
+.tool.on{box-shadow:inset 0 0 0 2px var(--accent);color:var(--accent);background:var(--soft)}
+.tool.danger{color:var(--danger);border-color:var(--danger)}
+.tool.danger:hover:not(:disabled){background:var(--danger);color:var(--panel)}
+.tool.wide{width:100%;margin-top:7px;flex-direction:row;gap:8px;min-height:46px;font-size:13px}
+.grp>.tool.wide:first-of-type{margin-top:0}
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.swatch{aspect-ratio:1;min-height:36px;border-radius:50%;border:2px solid var(--line);position:relative;padding:0;transition:transform .12s}
+.swatch:hover{transform:scale(1.08)}
+.swatch.sel{outline:3px solid var(--ink);outline-offset:2px}
+.swatch.sel::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-weight:700;color:var(--tick,#fff);animation:tick .2s}
+.custom{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:5px 8px;border-radius:10px;font-size:13px;font-weight:600;border:1.5px solid transparent}
+.custom.sel{border-color:var(--ink)}
+.custom input{width:46px;height:30px;border:1.5px solid var(--line);border-radius:8px;padding:0;background:none}
+.colorname{margin:8px 0 0;font-size:13px;color:var(--muted)}.colorname b{color:var(--ink)}
+.size-dot{display:block;border-radius:50%;background:currentColor}
+@keyframes tick{from{transform:scale(0)}}
+
+/* ----- zone 3: board ----- */
+.board{flex:1;position:relative;min-width:0;padding:16px;background:radial-gradient(var(--dots) 1.2px,transparent 1.3px) 0 0/22px 22px,var(--desk)}
+canvas{width:100%;height:100%;display:block;background:#fff;border-radius:14px;box-shadow:var(--shadow),0 0 0 1px rgba(21,34,44,.12);touch-action:none}
+.clearing{animation:wipe .45s}
+@keyframes wipe{30%{opacity:.2;transform:translateX(-6px)}60%{transform:translateX(6px)}}
+.hint{position:absolute;inset:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#47565f;pointer-events:none;text-align:center;transition:opacity .3s;padding:12px}
+.hint.hide{opacity:0}
+.hint b{font-size:19px;color:#15222c}
+.how{display:flex;align-items:flex-start;gap:6px;margin-bottom:6px}
+.how-step{display:flex;flex-direction:column;align-items:center;gap:7px;width:118px}
+.how-step small{font-size:12.5px;font-weight:600;color:#47565f;line-height:1.25}
+.bubble{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:#e2e9ec;color:#15222c}
+.bubble .i{width:26px;height:26px}
+.how .arrow{margin-top:16px;color:#76858f}
+[dir=rtl] .how .arrow .i{transform:scaleX(-1)}
+.squiggle{color:#0b6e7f}
+.squiggle path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 2.4s .3s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+.hud{position:absolute;top:30px;inset-inline:0;margin-inline:auto;width:max-content;max-width:calc(100% - 56px);display:grid;grid-template-columns:1fr auto;grid-template-areas:"text time" "bar bar" "act act";gap:6px 18px;align-items:center;padding:12px 16px;background:var(--panel);border:1.5px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:5}
+.hud[hidden]{display:none}
+.hud-text{grid-area:text;display:flex;flex-direction:column;min-width:0}.hud-text b{font-size:16px}.hud-text span{font-size:13px;color:var(--muted)}
+.time{grid-area:time;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.bar{grid-area:bar;height:8px;border-radius:99px;background:var(--soft);overflow:hidden}.bar i{display:block;height:100%;width:100%;background:var(--accent);transition:width .2s linear}
+.hud-actions{grid-area:act;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.hud-actions button{display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel)}
+.hud-actions .primary{background:var(--accent);border-color:var(--accent)}
+.hud[data-mode=run] .done-only,.hud[data-mode=done] .run-only{display:none}
+.hud[data-mode=done] .time,.hud[data-mode=done] .bar{display:none}
+
+/* ----- zone 4: status line ----- */
+.status{display:flex;gap:10px;align-items:center;padding:7px 16px;background:var(--status);color:var(--on-status);font-size:13px;flex-wrap:wrap;min-height:40px}
+.chip{background:rgba(255,255,255,.13);padding:3px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.chip i{width:12px;height:12px;border-radius:50%;border:1.5px solid #fff;display:inline-block}
+#st-tool{font-weight:700}
+.status .next{flex:1;min-width:140px;opacity:.92}
+.status .msg{color:var(--msg);font-weight:600;min-width:0}
+.status .count,.status .pos{opacity:.8;font-variant-numeric:tabular-nums;white-space:pre}
+
+.toast{position:fixed;left:50%;bottom:64px;transform:translate(-50%,20px);background:var(--ink);color:var(--desk);padding:11px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;display:flex;gap:16px;align-items:center;z-index:50;box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;padding:2px 4px}
+
+/* ----- dialogs ----- */
+dialog{border:1.5px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:24px;max-width:460px;width:92vw;max-height:90vh;overflow:auto;box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,17,20,.6)}
+dialog h3{margin:0 0 8px;font-size:19px}dialog li{margin:6px 0}dialog h4{margin:4px 0 8px;font-size:14px}
+dialog[open]{animation:dlg .22s ease-out}
+@keyframes dlg{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:18px}
+.actions button,.goodbye button{padding:10px 16px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel)}
+.actions .primary,.goodbye .primary{background:var(--accent);border-color:var(--accent)}
+.wide-dlg{max-width:660px}.wide-dlg .actions{position:sticky;bottom:-24px;margin-bottom:-24px;padding:12px 0 24px;background:var(--panel)}.sub{color:var(--muted);margin:0 0 14px}
+.steps{list-style:none;counter-reset:s;padding:0;margin:0 0 14px;display:grid;gap:8px}
+.steps li{counter-increment:s;display:flex;flex-direction:column;gap:2px;margin:0;padding:10px 14px;padding-inline-start:54px;position:relative;background:var(--soft);border-radius:12px}
+.steps li::before{content:counter(s);position:absolute;inset-inline-start:13px;top:50%;translate:0 -50%;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--sel-bg);color:var(--sel-fg);font-weight:700}
+.steps span{color:var(--muted);font-size:13.5px}
+.two,.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}.cols{grid-template-columns:repeat(3,1fr)}
+.keys,.tips,.zones,.rules{list-style:none;padding:0;margin:0}
+.keys li,.tips li{display:flex;gap:10px;align-items:center;margin:5px 0;font-size:13.5px}
+.keys kbd{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font:600 12px ui-monospace,Menlo,Consolas,monospace;min-width:74px;text-align:center}
+.tips li{align-items:flex-start}.tips li::before{content:"";flex:none;width:8px;height:8px;margin-top:7px;border-radius:50%;background:var(--spark)}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid var(--line);margin:12px 0 16px;flex-wrap:wrap}
+.tabs button{background:none;border:0;padding:9px 14px;border-radius:9px 9px 0 0;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1.5px}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel[hidden]{display:none}
+.zones{display:grid;gap:10px}
+.zones li{display:flex;gap:14px;align-items:flex-start;margin:0;padding:12px 14px;background:var(--soft);border-radius:12px}
+.zones .zn{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--spark);color:#15222c;font-weight:700}
+.zones div{display:flex;flex-direction:column;gap:2px;min-width:0}.zones span:not(.zn){color:var(--muted);font-size:13.5px}
+.checks{display:grid;gap:6px}
+.checks label{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;background:var(--soft);cursor:pointer;font-size:14px}
+.checks input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--accent)}
+.prog{display:block;margin-top:10px;color:var(--muted);font-weight:600}
+.rules{margin:14px 0;padding:12px 14px;border-radius:12px;border:1.5px dashed var(--line);font-size:13.5px}
+.notes-l{display:block;font-weight:600;margin:6px 0}
+textarea{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:10px;resize:vertical}
+.goodbye{position:fixed;inset:0;background:var(--desk);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:100;text-align:center;padding:24px}.goodbye[hidden]{display:none}
+
+/* ----- small screens: the toolbar becomes a strip above the board ----- */
+@media (max-width:760px){
+  body{overflow:auto}
+  .main{flex-direction:column;min-height:calc(100dvh - 120px)}
+  .toolbar{width:100%;display:flex;gap:16px;padding:6px 12px 10px;overflow-x:auto;overflow-y:hidden;border-inline-end:0;border-bottom:1px solid var(--line)}
+  .grp{flex:none}.grp h2{margin:6px 0 5px}
+  .grid,.grid3{display:flex}.tool{min-width:64px}.tool.wide{width:auto;margin-top:0;min-width:128px}
+  .grp>.tool.wide:first-of-type{margin-top:0}
+  .grp:last-child{display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;width:150px}.grp:last-child h2{width:100%}
+  .swatches{grid-template-columns:repeat(6,36px)}
+  .board{min-height:380px;padding:10px}.hint{inset:10px}
+  .brand-name,#st-pos,.pill,.status .count{display:none}.menu-btn{padding:8px 9px}
+  .how-step{width:92px}.hud{top:20px}
+  .two,.cols{grid-template-columns:1fr}
+}
+@media (max-width:420px){.menubar{padding:6px 10px;gap:6px}.round{width:34px;height:34px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.squiggle path{stroke-dashoffset:0}}
+
+</style>
+</head>
+<body>
+<noscript><p style="padding:24px">Magic Board needs JavaScript. Please enable it and reload.</p></noscript>
+
+<!-- ZONE 1: MENU BAR -->
+<header class="menubar">
+  <div class="brand">
+    <svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#15222c"/><path d="M8 28c4-11 8 2 12-7s6-3 11-7" fill="none" stroke="#5fd0dd" stroke-width="3.4" stroke-linecap="round"/><path d="M29 5l1.4 3.2 3.2 1.4-3.2 1.4L29 14.2l-1.4-3.2-3.2-1.4 3.2-1.4z" fill="#ffb703"/></svg>
+    <span class="brand-name">Magic Board</span>
+  </div>
+  <nav class="menus" role="menubar">
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="file"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="open" data-i="open"><span data-t="openDrawing"></span><kbd>Ctrl+O</kbd></button>
+      <button role="menuitem" data-act="save" data-i="save"><span data-t="savePNG"></span><kbd>Ctrl+S</kbd></button>
+      <button role="menuitem" data-act="project" data-i="save"><span data-t="saveProject"></span></button><hr>
+      <button role="menuitem" data-act="copy" data-i="copy"><span data-t="copyImage"></span></button>
+      <button role="menuitem" data-act="share" data-i="share"><span data-t="share"></span></button></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="shapes"></button><div class="dropdown" id="menu-shapes" role="menu"></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="colors"></button><div class="dropdown" id="menu-colors" role="menu"></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="delete"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="undo" data-i="undo"><span data-t="undo"></span><kbd>Ctrl+Z</kbd></button>
+      <button role="menuitem" data-act="redo" data-i="redo"><span data-t="redo"></span><kbd>Ctrl+Y</kbd></button><hr>
+      <button role="menuitem" data-act="clear" data-i="trash" class="danger-item"><span data-t="clearBoard"></span></button></div></div>
+    <div class="menu"><button class="menu-btn" aria-haspopup="true" aria-expanded="false" data-t="exit"></button><div class="dropdown" role="menu">
+      <button role="menuitem" data-act="save" data-i="save"><span data-t="saveDrawing"></span><kbd>Ctrl+S</kbd></button>
+      <button role="menuitem" data-act="exit" data-i="exit"><span data-t="exitCmd"></span><kbd>Ctrl+Q</kbd></button></div></div>
+  </nav>
+  <span class="spacer"></span>
+  <select id="lang" aria-label="Language" title="Language"><option value="en">English</option><option value="ar">العربية</option><option value="fr">Français</option></select>
+  <button class="pill" data-act="open" data-i="open" data-k="Ctrl+O"><span data-t="open"></span></button>
+  <button class="pill primary" data-act="save" data-i="save" data-k="Ctrl+S"><span data-t="save"></span></button>
+  <button class="round" data-act="notes" data-i="notes" data-tt="notes"></button>
+  <button class="round" data-act="help" data-i="help" data-tt="guide" data-k="?"></button>
+  <button class="round" data-act="full" data-i="full" data-tt="fullscreen"></button>
+  <button class="round" data-act="theme" data-i="moon" data-tt="theme"></button>
+</header>
+
+<div class="main">
+  <!-- ZONE 2: TOOLBAR -->
+  <aside class="toolbar" aria-label="Toolbar">
+    <section class="grp"><h2 data-t="draw"></h2><div class="grid" id="tb-draw"></div></section>
+    <section class="grp"><h2 data-t="shapes"></h2><div class="grid" id="tb-shapes"></div></section>
+    <section class="grp"><h2 data-t="colors"></h2><div class="swatches" id="tb-colors"></div>
+      <label class="custom"><span data-t="custom"></span><input type="color" id="custom-color" value="#ff6600"></label>
+      <p class="colorname"><span data-t="colorL"></span>: <b id="tb-colorname"></b></p></section>
+    <section class="grp"><h2 data-t="thickness"></h2><div class="grid3" id="tb-size"></div></section>
+    <section class="grp"><h2 data-t="options"></h2><div class="grid">
+      <button class="tool" data-act="fill" data-i="fill" data-k="F"><span data-t="fill"></span></button>
+      <button class="tool" data-act="grid" data-i="grid" data-k="G"><span data-t="grid"></span></button></div></section>
+    <section class="grp"><h2 data-t="history"></h2><div class="grid">
+      <button class="tool" data-act="undo" data-i="undo" data-tt="undo" data-k="Ctrl+Z"><span data-t="undo"></span></button>
+      <button class="tool" data-act="redo" data-i="redo" data-tt="redo" data-k="Ctrl+Y"><span data-t="redo"></span></button></div></section>
+    <section class="grp"><h2 data-t="play"></h2>
+      <button class="tool wide" data-act="trace" data-i="target" data-k="T"><span data-t="trace"></span></button>
+      <button class="tool danger wide" data-act="clear" data-i="trash" data-tt="clearBoard"><span data-t="clearAll"></span></button></section>
+  </aside>
+
+  <!-- ZONE 3: BOARD -->
+  <main class="board">
+    <canvas id="canvas" aria-label="Drawing board"></canvas>
+    <div class="hint" id="hint" aria-hidden="true">
+      <div class="how">
+        <div class="how-step"><span class="bubble" data-i="pen"></span><small data-t="g1t"></small></div>
+        <span class="arrow" data-i="next"></span>
+        <div class="how-step"><span class="bubble" data-i="palette"></span><small data-t="g2t"></small></div>
+        <span class="arrow" data-i="next"></span>
+        <div class="how-step"><span class="bubble" data-i="drag"></span><small data-t="g3t"></small></div>
+      </div>
+      <svg class="squiggle" viewBox="0 0 220 60" width="220"><path d="M6 38c18-34 34 22 54-4s32-20 52-2 34 12 52-8 30-12 50 4" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" pathLength="1"/></svg>
+      <b data-t="hintT"></b><span data-t="hintS"></span>
+    </div>
+    <div class="hud" id="hud" hidden>
+      <div class="hud-text"><b id="hud-title"></b><span id="hud-sub"></span></div>
+      <span class="time" id="hud-time"></span>
+      <div class="bar" aria-hidden="true"><i id="hud-bar"></i></div>
+      <div class="hud-actions">
+        <button class="primary run-only" data-act="gstop" data-i="check" data-t="gStop"></button>
+        <button class="primary done-only" data-act="trace" data-i="target" data-t="gAgain"></button>
+        <button data-act="gclose" data-t="close"></button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ZONE 4: STATUS LINE -->
+<footer class="status">
+  <span id="st-tool" class="chip"></span><span id="st-color" class="chip"></span><span id="st-size" class="chip"></span>
+  <span id="st-hint" class="next"></span>
+  <span id="st-msg" class="msg" role="status" aria-live="polite"></span>
+  <span id="st-count" class="count"></span><span id="st-pos" class="pos" aria-hidden="true"></span>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+<input type="file" id="file" accept=".json,image/*" hidden>
+
+<dialog id="dlg-exit" aria-labelledby="exit-title"><h3 id="exit-title" data-t="exitT"></h3><p data-t="exitD"></p>
+  <div class="actions"><button data-exit="keep" data-t="keep"></button><button data-exit="discard" data-t="discard"></button><button data-exit="save" class="primary" data-t="saveExit" autofocus></button></div></dialog>
+
+<dialog id="dlg-guide" class="wide-dlg"><h3 data-t="guideT"></h3><p class="sub" data-t="guideS"></p>
+  <ol class="steps">
+    <li><b data-t="g1t"></b><span data-t="g1d"></span></li><li><b data-t="g2t"></b><span data-t="g2d"></span></li>
+    <li><b data-t="g3t"></b><span data-t="g3d"></span></li><li><b data-t="g4t"></b><span data-t="g4d"></span></li>
+    <li><b data-t="g5t"></b><span data-t="g5d"></span></li></ol>
+  <div class="two"><div><h4 data-t="keysT"></h4><ul class="keys">
+    <li><kbd>Ctrl+Z</kbd><span data-t="undo"></span></li><li><kbd>Ctrl+Y</kbd><span data-t="redo"></span></li>
+    <li><kbd>Ctrl+S</kbd><span data-t="save"></span></li><li><kbd>Ctrl+O</kbd><span data-t="open"></span></li>
+    <li><kbd>Ctrl+Q</kbd><span data-t="exitCmd"></span></li><li><kbd>P E L R C</kbd><span data-t="keyTools"></span></li>
+    <li><kbd>F</kbd><span data-t="fill"></span></li><li><kbd>G</kbd><span data-t="grid"></span></li>
+    <li><kbd>[ &nbsp;]</kbd><span data-t="thickness"></span></li><li><kbd>T</kbd><span data-t="trace"></span></li></ul></div>
+  <div><h4 data-t="tipsT"></h4><ul class="tips"><li data-t="tip1"></li><li data-t="tip2"></li><li data-t="tip3"></li><li data-t="tip4"></li></ul></div></div>
+  <div class="actions"><button class="primary" data-close data-t="back"></button></div></dialog>
+
+<dialog id="dlg-notes" class="wide-dlg"><h3 data-t="notesT"></h3>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-zones" data-tab="zones" aria-selected="true" aria-controls="panel-zones" data-t="nz"></button>
+    <button role="tab" id="tab-test" data-tab="test" aria-selected="false" aria-controls="panel-test" tabindex="-1" data-t="nt"></button>
+    <button role="tab" id="tab-check" data-tab="check" aria-selected="false" aria-controls="panel-check" tabindex="-1" data-t="nc"></button>
+  </div>
+  <div class="panel" id="panel-zones" role="tabpanel" aria-labelledby="tab-zones">
+    <ul class="zones">
+      <li><span class="zn">1</span><div><b data-t="z1t"></b><span data-t="z1d"></span></div></li>
+      <li><span class="zn">2</span><div><b data-t="z2t"></b><span data-t="z2d"></span></div></li>
+      <li><span class="zn">3</span><div><b data-t="z3t"></b><span data-t="z3d"></span></div></li>
+      <li><span class="zn">4</span><div><b data-t="z4t"></b><span data-t="z4d"></span></div></li>
+    </ul>
+  </div>
+  <div class="panel" id="panel-test" role="tabpanel" aria-labelledby="tab-test" hidden>
+    <p class="sub" data-t="testS"></p>
+    <div class="checks">
+      <label><input type="checkbox" data-chk="k1"><span data-t="k1"></span></label>
+      <label><input type="checkbox" data-chk="k2"><span data-t="k2"></span></label>
+      <label><input type="checkbox" data-chk="k3"><span data-t="k3"></span></label>
+      <label><input type="checkbox" data-chk="k4"><span data-t="k4"></span></label>
+      <label><input type="checkbox" data-chk="k5"><span data-t="k5"></span></label>
+    </div>
+    <small class="prog" data-prog="k"></small>
+    <ul class="rules"><li data-t="r1"></li><li data-t="r2"></li><li data-t="r3"></li></ul>
+    <label class="notes-l" for="notes-text" data-t="notesL"></label>
+    <textarea id="notes-text" rows="3"></textarea>
+  </div>
+  <div class="panel" id="panel-check" role="tabpanel" aria-labelledby="tab-check" hidden>
+    <div class="cols">
+      <div><h4 data-t="cSee"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c1"><span data-t="c1"></span></label>
+        <label><input type="checkbox" data-chk="c2"><span data-t="c2"></span></label>
+        <label><input type="checkbox" data-chk="c3"><span data-t="c3"></span></label>
+        <label><input type="checkbox" data-chk="c4"><span data-t="c4"></span></label></div></div>
+      <div><h4 data-t="cAct"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c5"><span data-t="c5"></span></label>
+        <label><input type="checkbox" data-chk="c6"><span data-t="c6"></span></label>
+        <label><input type="checkbox" data-chk="c7"><span data-t="c7"></span></label>
+        <label><input type="checkbox" data-chk="c8"><span data-t="c8"></span></label></div></div>
+      <div><h4 data-t="cRec"></h4><div class="checks">
+        <label><input type="checkbox" data-chk="c9"><span data-t="c9"></span></label>
+        <label><input type="checkbox" data-chk="c10"><span data-t="c10"></span></label>
+        <label><input type="checkbox" data-chk="c11"><span data-t="c11"></span></label>
+        <label><input type="checkbox" data-chk="c12"><span data-t="c12"></span></label></div></div>
+    </div>
+    <small class="prog" data-prog="c"></small>
+  </div>
+  <div class="actions"><button class="primary" data-close data-t="close"></button></div></dialog>
+
+<div class="goodbye" id="goodbye" hidden><h1 data-t="byeT"></h1><p data-t="byeD"></p><button class="primary" id="restart" data-t="restart"></button></div>
+<script>
+'use strict';
+/* Translations: English, العربية (RTL), Français. Use t(key, ...args). Missing keys fall back to English. */
+const I18N = {
+en:{
+file:"File",shapes:"Shapes",colors:"Colors",delete:"Delete",exit:"Exit",openDrawing:"Open drawing…",savePNG:"Save as PNG",saveProject:"Save project (.json)",copyImage:"Copy image",share:"Share…",undo:"Undo",redo:"Redo",clearBoard:"Clear the board",saveDrawing:"Save drawing",exitCmd:"Exit",open:"Open",save:"Save",draw:"Draw",custom:"Custom color",colorL:"Color",thickness:"Thickness",history:"History",options:"Options",clearAll:"Clear all",fill:"Fill",grid:"Grid",fullscreen:"Full screen",guide:"User guide",theme:"Light / dark mode",notes:"Design notes and test",play:"Play",trace:"Trace game",close:"Close",newBoard:"New board",
+tool_pen:"Pen",tool_eraser:"Eraser",tool_line:"Line",tool_rect:"Rectangle",tool_circle:"Circle",size_0:"Thin",size_1:"Medium",size_2:"Thick",
+col_0:"Black",col_1:"White",col_2:"Red",col_3:"Orange",col_4:"Yellow",col_5:"Green",col_6:"Blue",col_7:"Purple",col_8:"Pink",col_9:"Brown",col_10:"Gray",col_11:"Cyan",
+hintT:"Pick a tool, then drag here to draw",hintS:"Or open a drawing from the File menu",
+exitT:"Save your drawing before you exit?",exitD:"If you exit without saving, this drawing is lost.",keep:"Keep drawing",discard:"Exit without saving",saveExit:"Save and exit",byeT:"Magic Board closed",byeD:"You can close this tab, or start again.",restart:"Start a new board",back:"Back to drawing",
+toolL:"Tool",thickL:"Thickness",shapesCount:"Shapes: {0}",actionsL:"Actions: {0}",on:"on",off:"off",customName:"Custom {0}",
+h_pen:"Drag on the board to draw",h_eraser:"Drag over the drawing to erase",h_line:"Press where the line starts, drag, release",h_rect:"Press at one corner, drag to the opposite corner",h_circle:"Press at the center, drag to set the size",h_game:"Trace the dashed shape before time runs out",
+m_ready:"Ready to draw",m_tool:"Tool: {0}",m_color:"Color changed to {0}",m_size:"Thickness: {0}",m_noundo:"Nothing to undo yet",m_undone:"Last action undone",m_noredo:"Nothing to redo",m_restored:"Action restored",m_empty:"The board is already empty",m_cleared:"Board cleared. Ctrl+Z brings the drawing back",m_png:"Drawing saved as PNG (a copy is kept in this browser)",m_png2:"Drawing saved as PNG (too large to keep a copy in this browser)",m_proj:"Project saved. Reopen it with File → Open drawing",m_opened:"Opened “{0}”",m_pic:"Picture opened. Draw on top of it",m_bad:"This file is not a Magic Board drawing. Try a .json project or a picture.",m_badtype:"Cannot open this file. Choose a picture or a .json project.",m_draw:"Drawing…",m_added:"Added",m_erased:"Erased",m_tiny:"Nothing drawn: drag to draw a {0}",m_back:"Back to drawing",m_saved:"Your last saved drawing was restored",m_fill:"Fill: {0}",m_grid:"Grid: {0}",m_copied:"Image copied. Paste it in any app",m_copyfail:"Could not copy the image. Use Save instead",m_shared:"Shared",m_sharefail:"Sharing failed. Use Save instead",m_gstart:"Game on: trace the dashed shape with the pen",m_gend:"Game over. Score: {0}%",m_gclosed:"Game closed",
+t_cleared:"Board cleared",t_opened:"Drawing opened",t_restored:"Your last saved drawing is back",t_game:"Board cleared for the game",
+gameT:"Trace the {0}",shape_circle:"circle",shape_square:"square",shape_triangle:"triangle",shape_star:"star",shape_heart:"heart",gStop:"Score it",gAgain:"Play again",gScore:"Score: {0}%",gBest:"Best: {0}%",gV3:"Magic hands!",gV2:"Great tracing!",gV1:"Good try. Once more?",gV0:"Follow the dashed line and try again.",
+guideT:"How to use Magic Board",guideS:"Five steps. No reading needed after the first time.",
+g1t:"Choose a tool",g1d:"Click Pen, Line, Rectangle or Circle in the toolbar (or the Shapes menu).",g2t:"Pick a color",g2d:"Click a swatch or use Custom color. The ✓ and the name show what is on.",g3t:"Press, drag, release",g3d:"A dashed outline follows your hand; on release it becomes solid.",g4t:"Made a mistake?",g4d:"Undo (Ctrl+Z) removes the last shape. Even “Clear all” can be undone.",g5t:"Save or open",g5d:"Ctrl+S saves a PNG. File → Save project keeps it editable; Ctrl+O reopens it.",
+keysT:"Shortcuts",keyTools:"Tools",tipsT:"Useful tips",tip1:"Turn on Fill to draw solid shapes.",tip2:"Turn on Grid to align shapes (it is not saved in the PNG).",tip3:"Drop a picture or .json file on the page to open it.",tip4:"Try the Trace game: follow the dashed shape before time runs out.",
+notesT:"Design notes and usability test",nz:"The four zones",nt:"Test with a classmate",nc:"Checklist",
+z1t:"Menu bar",z1d:"Every command is written in words, so nothing has to be remembered. Shapes and Colors are here too, and Delete and Exit hold the commands that need care. (Nielsen 6)",
+z2t:"Toolbar",z2d:"The frequent commands, one click away, in titled groups. Each button has an icon and a word, a large target and a clear selected state. (Nielsen 7, Fitts)",
+z3t:"Board",z3d:"The largest zone, with nothing else on it. The shape follows the pointer while you draw. (Nielsen 8, Shneiderman)",
+z4t:"Status line",z4d:"Always shows the tool, color and thickness in use, and what to do next. (Nielsen 1)",
+testS:"Ask a classmate to do these five tasks without your help. Tick each one they finish alone.",
+k1:"Draw a red circle.",k2:"Change the line color using the menu.",k3:"Remove one mistake and keep the rest.",k4:"Clear the whole board, then bring it back.",k5:"Leave the program without losing the drawing.",
+r1:"Stay silent. If you explain, you test yourself.",r2:"Note every hesitation and every wrong click.",r3:"Blame the board, never the user: fix it, then test with someone else.",
+notesL:"What the test made me change",progress:"{0} of {1} done",
+cSee:"See",cAct:"Act",cRec:"Recover",
+c1:"The board takes most of the window.",c2:"I can always see the tool, the color and the thickness.",c3:"The selection does not rely on color alone.",c4:"Text has 4.5:1 contrast, controls 3:1.",
+c5:"Shapes and colors are in the toolbar and in the menu.",c6:"Toolbar and menu always agree.",c7:"The shape follows the mouse while I draw.",c8:"Targets are large, and each word says what it does.",
+c9:"Undo takes back the last action.",c10:"A cleared board can be brought back.",c11:"Exit warns only when something would be lost.",c12:"A classmate did all five tasks without my help."
+},
+ar:{
+file:"ملف",shapes:"الأشكال",colors:"الألوان",delete:"حذف",exit:"خروج",openDrawing:"فتح رسم…",savePNG:"حفظ كصورة PNG",saveProject:"حفظ المشروع (.json)",copyImage:"نسخ الصورة",share:"مشاركة…",undo:"تراجع",redo:"إعادة",clearBoard:"مسح اللوحة",saveDrawing:"حفظ الرسم",exitCmd:"خروج",open:"فتح",save:"حفظ",draw:"ارسم",custom:"لون مخصص",colorL:"اللون",thickness:"السُّمك",history:"السجل",options:"خيارات",clearAll:"مسح الكل",fill:"تعبئة",grid:"شبكة",fullscreen:"ملء الشاشة",guide:"دليل الاستعمال",theme:"الوضع الفاتح / الداكن",notes:"ملاحظات التصميم والاختبار",play:"العب",trace:"لعبة التتبّع",close:"إغلاق",newBoard:"لوحة جديدة",
+tool_pen:"قلم",tool_eraser:"ممحاة",tool_line:"خط",tool_rect:"مستطيل",tool_circle:"دائرة",size_0:"رفيع",size_1:"متوسط",size_2:"سميك",
+col_0:"أسود",col_1:"أبيض",col_2:"أحمر",col_3:"برتقالي",col_4:"أصفر",col_5:"أخضر",col_6:"أزرق",col_7:"بنفسجي",col_8:"وردي",col_9:"بني",col_10:"رمادي",col_11:"سماوي",
+hintT:"اختر أداة ثم اسحب هنا للرسم",hintS:"أو افتح رسماً من قائمة ملف",
+exitT:"هل تريد حفظ رسمك قبل الخروج؟",exitD:"إذا خرجت دون حفظ فسيضيع هذا الرسم.",keep:"متابعة الرسم",discard:"خروج دون حفظ",saveExit:"حفظ ثم خروج",byeT:"تم إغلاق Magic Board",byeD:"يمكنك إغلاق التبويب أو البدء من جديد.",restart:"لوحة جديدة",back:"العودة إلى الرسم",
+toolL:"الأداة",thickL:"السمك",shapesCount:"الأشكال: {0}",actionsL:"العمليات: {0}",on:"مفعّلة",off:"متوقفة",customName:"مخصص {0}",
+h_pen:"اسحب على اللوحة للرسم",h_eraser:"اسحب فوق الرسم للمحو",h_line:"اضغط عند بداية الخط ثم اسحب ثم اترك",h_rect:"اضغط عند زاوية ثم اسحب إلى الزاوية المقابلة",h_circle:"اضغط عند المركز ثم اسحب لتحديد الحجم",h_game:"تتبّع الشكل المتقطع قبل انتهاء الوقت",
+m_ready:"جاهز للرسم",m_tool:"الأداة: {0}",m_color:"تم تغيير اللون إلى {0}",m_size:"السمك: {0}",m_noundo:"لا يوجد شيء للتراجع عنه",m_undone:"تم التراجع عن آخر عملية",m_noredo:"لا يوجد شيء لإعادته",m_restored:"تمت إعادة العملية",m_empty:"اللوحة فارغة أصلاً",m_cleared:"تم مسح اللوحة. Ctrl+Z يعيد الرسم",m_png:"تم حفظ الرسم كصورة PNG (ونسخة في هذا المتصفح)",m_png2:"تم حفظ الرسم كصورة PNG (حجمه كبير فلم تُحفظ نسخة في المتصفح)",m_proj:"تم حفظ المشروع. افتحه من ملف ← فتح رسم",m_opened:"تم فتح «{0}»",m_pic:"تم فتح الصورة. يمكنك الرسم فوقها",m_bad:"هذا الملف ليس رسماً من Magic Board. جرّب مشروع .json أو صورة.",m_badtype:"لا يمكن فتح هذا الملف. اختر صورة أو مشروع .json.",m_draw:"جارٍ الرسم…",m_added:"تمت الإضافة",m_erased:"تم المحو",m_tiny:"لم يُرسم شيء: اسحب لرسم {0}",m_back:"العودة إلى الرسم",m_saved:"تم استرجاع آخر رسم محفوظ",m_fill:"التعبئة: {0}",m_grid:"الشبكة: {0}",m_copied:"تم نسخ الصورة. الصقها في أي تطبيق",m_copyfail:"تعذّر نسخ الصورة. استعمل «حفظ» بدلاً من ذلك",m_shared:"تمت المشاركة",m_sharefail:"فشلت المشاركة. استعمل «حفظ» بدلاً من ذلك",m_gstart:"بدأت اللعبة: تتبّع الشكل المتقطع بالقلم",m_gend:"انتهت اللعبة. النتيجة: {0}%",m_gclosed:"تم إغلاق اللعبة",
+t_cleared:"تم مسح اللوحة",t_opened:"تم فتح الرسم",t_restored:"عاد آخر رسم محفوظ",t_game:"تم مسح اللوحة من أجل اللعبة",
+gameT:"تتبّع {0}",shape_circle:"الدائرة",shape_square:"المربع",shape_triangle:"المثلث",shape_star:"النجمة",shape_heart:"القلب",gStop:"احسب النتيجة",gAgain:"العب مجدداً",gScore:"النتيجة: {0}%",gBest:"الأفضل: {0}%",gV3:"يدان سحريتان!",gV2:"تتبّع رائع!",gV1:"محاولة جيدة. مرة أخرى؟",gV0:"اتبع الخط المتقطع وحاول من جديد.",
+guideT:"كيف تستعمل Magic Board",guideS:"خمس خطوات فقط، ولا تحتاج إلى القراءة بعد المرة الأولى.",
+g1t:"اختر أداة",g1d:"اضغط على قلم أو خط أو مستطيل أو دائرة في شريط الأدوات (أو من قائمة الأشكال).",g2t:"اختر لوناً",g2d:"اضغط على لون أو استعمل «لون مخصص». علامة ✓ والاسم يوضحان اللون المفعّل.",g3t:"اضغط، اسحب، ثم اترك",g3d:"يتبع خط متقطع يدك أثناء السحب، وعند التحرير يصبح الشكل ثابتاً.",g4t:"أخطأت؟",g4d:"تراجع (Ctrl+Z) يحذف آخر شكل. حتى «مسح الكل» يمكن التراجع عنه.",g5t:"احفظ أو افتح",g5d:"Ctrl+S يحفظ صورة PNG. ملف ← حفظ المشروع يبقيه قابلاً للتعديل، وCtrl+O يعيد فتحه.",
+keysT:"اختصارات لوحة المفاتيح",keyTools:"الأدوات",tipsT:"نصائح مفيدة",tip1:"فعّل «تعبئة» لرسم أشكال ممتلئة.",tip2:"فعّل «شبكة» لمحاذاة الأشكال (لا تُحفظ في PNG).",tip3:"أفلت صورة أو ملف .json على الصفحة لفتحه.",tip4:"جرّب لعبة التتبّع: اتبع الشكل المتقطع قبل انتهاء الوقت.",
+notesT:"ملاحظات التصميم واختبار قابلية الاستعمال",nz:"المناطق الأربع",nt:"اختبار مع زميل",nc:"قائمة التحقق",
+z1t:"شريط القوائم",z1d:"كل أمر مكتوب بكلمات، فلا شيء يجب حفظه. الأشكال والألوان موجودة هنا أيضاً، وقائمتا «حذف» و«خروج» تضمّان الأوامر الحساسة. (Nielsen 6)",
+z2t:"شريط الأدوات",z2d:"الأوامر المتكررة على بعد نقرة واحدة ضمن مجموعات بعناوين. لكل زر أيقونة وكلمة وهدف كبير وحالة تحديد واضحة. (Nielsen 7، Fitts)",
+z3t:"اللوحة",z3d:"أكبر منطقة ولا شيء آخر فيها. يتبع الشكل المؤشر أثناء الرسم. (Nielsen 8، Shneiderman)",
+z4t:"سطر الحالة",z4d:"يعرض دائماً الأداة واللون والسمك المستعملة وما ينبغي فعله بعد ذلك. (Nielsen 1)",
+testS:"اطلب من زميل أن ينجز هذه المهام الخمس دون مساعدتك. علّم كل مهمة أنجزها وحده.",
+k1:"ارسم دائرة حمراء.",k2:"غيّر لون الخط باستعمال القائمة.",k3:"احذف خطأً واحداً وأبقِ الباقي.",k4:"امسح اللوحة كلها ثم أعدها.",k5:"اترك البرنامج دون أن تفقد الرسم.",
+r1:"التزم الصمت. إذا شرحتَ فأنت تختبر نفسك.",r2:"دوّن كل تردد وكل نقرة خاطئة.",r3:"ألقِ اللوم على اللوحة لا على المستعمل: أصلحها ثم اختبر مع شخص آخر.",
+notesL:"ما الذي جعلني الاختبار أغيّره",progress:"أُنجز {0} من {1}",
+cSee:"أرى",cAct:"أتصرف",cRec:"أتدارك",
+c1:"اللوحة تشغل معظم النافذة.",c2:"أرى دائماً الأداة واللون والسمك.",c3:"التحديد لا يعتمد على اللون وحده.",c4:"للنصوص تباين 4.5:1 وللعناصر 3:1.",
+c5:"الأشكال والألوان في شريط الأدوات وفي القائمة.",c6:"شريط الأدوات والقائمة متفقان دائماً.",c7:"يتبع الشكل الفأرة أثناء الرسم.",c8:"الأهداف كبيرة وكل كلمة تقول ما يفعله الزر.",
+c9:"التراجع يلغي آخر عملية.",c10:"يمكن إرجاع اللوحة بعد مسحها.",c11:"الخروج ينبّه فقط عند وجود ما قد يضيع.",c12:"أنجز زميل المهام الخمس دون مساعدتي."
+},
+fr:{
+file:"Fichier",shapes:"Formes",colors:"Couleurs",delete:"Supprimer",exit:"Quitter",openDrawing:"Ouvrir un dessin…",savePNG:"Enregistrer en PNG",saveProject:"Enregistrer le projet (.json)",copyImage:"Copier l'image",share:"Partager…",undo:"Annuler",redo:"Rétablir",clearBoard:"Effacer le tableau",saveDrawing:"Enregistrer le dessin",exitCmd:"Quitter",open:"Ouvrir",save:"Enregistrer",draw:"Dessiner",custom:"Couleur perso.",colorL:"Couleur",thickness:"Épaisseur",history:"Historique",options:"Options",clearAll:"Tout effacer",fill:"Remplir",grid:"Grille",fullscreen:"Plein écran",guide:"Guide d'utilisation",theme:"Mode clair / sombre",notes:"Notes de conception et test",play:"Jouer",trace:"Jeu du tracé",close:"Fermer",newBoard:"Nouveau tableau",
+tool_pen:"Crayon",tool_eraser:"Gomme",tool_line:"Ligne",tool_rect:"Rectangle",tool_circle:"Cercle",size_0:"Fin",size_1:"Moyen",size_2:"Épais",
+col_0:"Noir",col_1:"Blanc",col_2:"Rouge",col_3:"Orange",col_4:"Jaune",col_5:"Vert",col_6:"Bleu",col_7:"Violet",col_8:"Rose",col_9:"Marron",col_10:"Gris",col_11:"Cyan",
+hintT:"Choisissez un outil, puis glissez ici pour dessiner",hintS:"Ou ouvrez un dessin depuis le menu Fichier",
+exitT:"Enregistrer votre dessin avant de quitter ?",exitD:"Si vous quittez sans enregistrer, ce dessin sera perdu.",keep:"Continuer à dessiner",discard:"Quitter sans enregistrer",saveExit:"Enregistrer et quitter",byeT:"Magic Board est fermé",byeD:"Vous pouvez fermer l'onglet ou recommencer.",restart:"Nouveau tableau",back:"Retour au dessin",
+toolL:"Outil",thickL:"Épaisseur",shapesCount:"Formes : {0}",actionsL:"Actions : {0}",on:"activé",off:"désactivé",customName:"Perso {0}",
+h_pen:"Glissez sur le tableau pour dessiner",h_eraser:"Glissez sur le dessin pour effacer",h_line:"Appuyez au début de la ligne, glissez, relâchez",h_rect:"Appuyez sur un coin, glissez vers le coin opposé",h_circle:"Appuyez au centre, glissez pour fixer la taille",h_game:"Suivez la forme en pointillés avant la fin du temps",
+m_ready:"Prêt à dessiner",m_tool:"Outil : {0}",m_color:"Couleur changée : {0}",m_size:"Épaisseur : {0}",m_noundo:"Rien à annuler",m_undone:"Dernière action annulée",m_noredo:"Rien à rétablir",m_restored:"Action rétablie",m_empty:"Le tableau est déjà vide",m_cleared:"Tableau effacé. Ctrl+Z ramène le dessin",m_png:"Dessin enregistré en PNG (copie gardée dans ce navigateur)",m_png2:"Dessin enregistré en PNG (trop lourd pour garder une copie dans ce navigateur)",m_proj:"Projet enregistré. Rouvrez-le avec Fichier → Ouvrir",m_opened:"« {0} » ouvert",m_pic:"Image ouverte. Dessinez par-dessus",m_bad:"Ce fichier n'est pas un dessin Magic Board. Essayez un projet .json ou une image.",m_badtype:"Impossible d'ouvrir ce fichier. Choisissez une image ou un projet .json.",m_draw:"Dessin en cours…",m_added:"Ajouté",m_erased:"Effacé",m_tiny:"Rien dessiné : glissez pour dessiner un(e) {0}",m_back:"Retour au dessin",m_saved:"Votre dernier dessin enregistré a été restauré",m_fill:"Remplissage : {0}",m_grid:"Grille : {0}",m_copied:"Image copiée. Collez-la dans une application",m_copyfail:"Impossible de copier l'image. Utilisez Enregistrer",m_shared:"Partagé",m_sharefail:"Échec du partage. Utilisez Enregistrer",m_gstart:"C'est parti : suivez la forme en pointillés avec le crayon",m_gend:"Partie terminée. Score : {0} %",m_gclosed:"Jeu fermé",
+t_cleared:"Tableau effacé",t_opened:"Dessin ouvert",t_restored:"Votre dernier dessin enregistré est de retour",t_game:"Tableau effacé pour le jeu",
+gameT:"Suivez : {0}",shape_circle:"le cercle",shape_square:"le carré",shape_triangle:"le triangle",shape_star:"l'étoile",shape_heart:"le cœur",gStop:"Calculer le score",gAgain:"Rejouer",gScore:"Score : {0} %",gBest:"Meilleur : {0} %",gV3:"Mains magiques !",gV2:"Beau tracé !",gV1:"Bien essayé. Encore ?",gV0:"Suivez la ligne en pointillés et réessayez.",
+guideT:"Comment utiliser Magic Board",guideS:"Cinq étapes. Plus besoin de lire après la première fois.",
+g1t:"Choisissez un outil",g1d:"Cliquez sur Crayon, Ligne, Rectangle ou Cercle dans la barre d'outils (ou le menu Formes).",g2t:"Choisissez une couleur",g2d:"Cliquez sur une pastille ou utilisez Couleur perso. Le ✓ et le nom montrent la couleur active.",g3t:"Appuyer, glisser, relâcher",g3d:"Un contour en pointillés suit votre main ; au relâchement il devient plein.",g4t:"Une erreur ?",g4d:"Annuler (Ctrl+Z) retire la dernière forme. Même « Tout effacer » s'annule.",g5t:"Enregistrer ou ouvrir",g5d:"Ctrl+S enregistre un PNG. Fichier → Enregistrer le projet le garde modifiable ; Ctrl+O le rouvre.",
+keysT:"Raccourcis clavier",keyTools:"Outils",tipsT:"Astuces utiles",tip1:"Activez Remplir pour des formes pleines.",tip2:"Activez Grille pour aligner les formes (absente du PNG).",tip3:"Déposez une image ou un fichier .json sur la page pour l'ouvrir.",tip4:"Essayez le jeu du tracé : suivez la forme en pointillés avant la fin du temps.",
+notesT:"Notes de conception et test d'utilisabilité",nz:"Les quatre zones",nt:"Test avec un camarade",nc:"Liste de contrôle",
+z1t:"Barre de menus",z1d:"Chaque commande est écrite en mots : rien à retenir. Formes et Couleurs y sont aussi, et Supprimer et Quitter regroupent les commandes sensibles. (Nielsen 6)",
+z2t:"Barre d'outils",z2d:"Les commandes fréquentes, à un clic, en groupes titrés. Chaque bouton a une icône et un mot, une grande cible et un état sélectionné clair. (Nielsen 7, Fitts)",
+z3t:"Tableau",z3d:"La plus grande zone, sans rien d'autre. La forme suit le pointeur pendant le dessin. (Nielsen 8, Shneiderman)",
+z4t:"Ligne d'état",z4d:"Montre toujours l'outil, la couleur et l'épaisseur actifs, et la suite à donner. (Nielsen 1)",
+testS:"Demandez à un camarade de faire ces cinq tâches sans votre aide. Cochez chacune qu'il réussit seul.",
+k1:"Dessiner un cercle rouge.",k2:"Changer la couleur du trait avec le menu.",k3:"Supprimer une erreur et garder le reste.",k4:"Effacer tout le tableau, puis le ramener.",k5:"Quitter le programme sans perdre le dessin.",
+r1:"Restez silencieux. Si vous expliquez, vous vous testez vous-même.",r2:"Notez chaque hésitation et chaque clic erroné.",r3:"Blâmez le tableau, jamais l'utilisateur : corrigez, puis testez avec quelqu'un d'autre.",
+notesL:"Ce que le test m'a fait changer",progress:"{0} sur {1} faits",
+cSee:"Voir",cAct:"Agir",cRec:"Rattraper",
+c1:"Le tableau occupe l'essentiel de la fenêtre.",c2:"Je vois toujours l'outil, la couleur et l'épaisseur.",c3:"La sélection ne repose pas sur la couleur seule.",c4:"Les textes ont un contraste de 4,5:1, les contrôles 3:1.",
+c5:"Formes et couleurs sont dans la barre d'outils et dans le menu.",c6:"Barre d'outils et menu sont toujours d'accord.",c7:"La forme suit la souris pendant que je dessine.",c8:"Les cibles sont grandes et chaque mot dit ce qu'il fait.",
+c9:"Annuler reprend la dernière action.",c10:"Un tableau effacé peut être ramené.",c11:"Quitter n'avertit que si quelque chose serait perdu.",c12:"Un camarade a fait les cinq tâches sans mon aide."
+}
+};
+let LANG = 'en';
+try { LANG = JSON.parse(localStorage.getItem('mb-lang')) || (navigator.language || 'en').slice(0, 2); } catch (e) {}
+if (!I18N[LANG]) LANG = 'en';
+const t = (k, ...a) => String(I18N[LANG][k] ?? I18N.en[k] ?? k).replace(/\{(\d)\}/g, (_, i) => a[i]);
+
+</script>
+<script>
+'use strict';
+/* Magic Board – MVC.
+   MODEL      state.shapes = list of drawing objects (pen, line, rect, circle, image, project, clear). Undo/redo move items between two lists.
+   VIEW       render() redraws the whole list on an off-screen layer, then adds grid and previews. updateUI() refreshes every control from `state`.
+   CONTROLLER pointer events, keyboard, menus and commands.
+   Texts live in i18n.js (English, Arabic, French). */
+
+const COLORS = ['#111827','#ffffff','#dc2626','#ea580c','#facc15','#16a34a','#2563eb','#7c3aed','#ec4899','#8b5a2b','#6b7280','#06b6d4'];
+const TOOLS = ['pen','eraser','line','rect','circle'];
+const SIZES = [2, 6, 12];
+const KEYS = { p:'pen', e:'eraser', l:'line', r:'rect', c:'circle' };
+const IC = {
+  pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  eraser:'<path d="M20 20H9l-5-5a2 2 0 0 1 0-3l9-9a2 2 0 0 1 3 0l5 5a2 2 0 0 1 0 3l-8 9"/><path d="M7 11l6 6"/>',
+  line:'<path d="M5 19L19 5"/>', rect:'<rect x="4" y="6" width="16" height="12" rx="1"/>', circle:'<circle cx="12" cy="12" r="8"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>', redo:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  trash:'<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/>',
+  open:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  save:'<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3"/><path d="M8 21v-7h8v7"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7"/><path d="M12 17h.01"/>',
+  moon:'<path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  exit:'<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  fill:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>', grid:'<path d="M4 4h16v16H4z"/><path d="M4 12h16M12 4v16"/>',
+  full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+  notes:'<path d="M9 4h6l1 2h3v15H5V6h3z"/><path d="M9 13l2 2 4-4"/>',
+  check:'<path d="M5 12l5 5 9-10"/>', next:'<path d="M9 5l7 7-7 7"/>',
+  palette:'<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2s0-2 1.5-2h2a3 3 0 0 0 3-3c0-6-4-11-8-11z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7" r="1"/><circle cx="16" cy="8" r="1"/>',
+  drag:'<circle cx="5" cy="12" r="2"/><path d="M9 12h11M16 8l4 4-4 4"/>'
+};
+const svg = n => '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+const state = { tool:'pen', color:COLORS[0], colorKey:'col_0', size:6, fill:false, grid:false, shapes:[], redo:[], dirty:false };
+let current = null, hover = null, game = null, W = 0, H = 0, DPR = 1;
+const canvas = $('#canvas'), ctx = canvas.getContext('2d');
+const layer = document.createElement('canvas'), lctx = layer.getContext('2d');
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+const colorName = () => state.colorKey ? t(state.colorKey) : t('customName', state.color);
+const sizeName = () => t('size_' + Math.max(0, SIZES.indexOf(state.size)));
+const saveSettings = () => store.set('mb-settings', { color:state.color, key:state.colorKey, size:state.size, fill:state.fill, grid:state.grid });
+const lum = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * r + .7152 * g + .0722 * b; };
+
+/* ---------- MODEL: sanitising anything that comes from a file or storage ---------- */
+function clean(s) {
+  if (!s || typeof s !== 'object') return null;
+  if (s.type === 'image') return typeof s.src === 'string' && /^data:image\/(png|jpe?g|gif|webp|bmp|svg\+xml);base64,/i.test(s.src) ? { type:'image', src:s.src } : null;
+  if (s.type === 'project') return { type:'project', shapes:(Array.isArray(s.shapes) ? s.shapes : []).map(clean).filter(Boolean) };
+  if (!['pen','line','rect','circle'].includes(s.type)) return null;
+  const o = { type:s.type, color:/^#[0-9a-f]{6}$/i.test(s.color) ? s.color : '#111827', size:Math.min(60, Math.max(1, +s.size || 6)), erase:!!s.erase, fill:!!s.fill };
+  if (s.type === 'pen') {
+    if (!Array.isArray(s.points)) return null;
+    o.points = s.points.slice(0, 20000).filter(p => p && Number.isFinite(+p.x) && Number.isFinite(+p.y)).map(p => ({ x:+p.x, y:+p.y }));
+    return o.points.length ? o : null;
+  }
+  for (const k of ['x0','y0','x1','y1']) { if (!Number.isFinite(+s[k])) return null; o[k] = +s[k]; }
+  return o;
+}
+function resetIndex() { for (let i = state.shapes.length - 1; i >= 0; i--) if (['clear','project'].includes(state.shapes[i].type)) return i; return -1; }
+const visibleShapes = () => state.shapes.slice(Math.max(resetIndex(), 0)).filter(s => s.type !== 'clear');
+const countShapes = () => visibleShapes().reduce((n, s) => n + (s.type === 'project' ? s.shapes.length : 1), 0);
+
+/* ---------- VIEW ---------- */
+const imgCache = {};
+function getImg(src) { if (!imgCache[src]) { const i = new Image(); i.onload = () => render(); i.src = src; imgCache[src] = i; } return imgCache[src]; }
+const eraserWidth = size => size * 4 + 8;
+function penPath(c, pts) {
+  c.moveTo(pts[0].x, pts[0].y);
+  if (pts.length === 1) return c.lineTo(pts[0].x + .01, pts[0].y);
+  if (pts.length === 2) return c.lineTo(pts[1].x, pts[1].y);
+  for (let i = 1; i < pts.length - 1; i++) c.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
+  c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+}
+function drawShape(c, s, preview = false) {
+  if (s.type === 'project') return s.shapes.forEach(x => drawShape(c, x));
+  if (s.type === 'image') {
+    const im = getImg(s.src); if (!im.complete || !im.naturalWidth) return;
+    const k = Math.min(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+    return c.drawImage(im, (W - w) / 2, (H - h) / 2, w, h);
+  }
+  if (s.type === 'clear') return;
+  c.save(); c.lineWidth = s.erase ? eraserWidth(s.size) : s.size; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = c.fillStyle = s.color;
+  if (s.erase) c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  if (s.type === 'pen') penPath(c, s.points);
+  else if (s.type === 'line') { c.moveTo(s.x0, s.y0); c.lineTo(s.x1, s.y1); }
+  else if (s.type === 'rect') c.rect(s.x0, s.y0, s.x1 - s.x0, s.y1 - s.y0);
+  else if (s.type === 'circle') c.arc(s.x0, s.y0, Math.hypot(s.x1 - s.x0, s.y1 - s.y0), 0, Math.PI * 2);
+  if (s.fill) { c.globalAlpha = preview ? .3 : 1; c.fill(); c.globalAlpha = 1; }
+  if (preview) c.setLineDash([8, 6]);
+  c.stroke(); c.restore();
+}
+function paintLayer() {
+  lctx.setTransform(DPR, 0, 0, DPR, 0, 0); lctx.clearRect(0, 0, W, H);
+  visibleShapes().forEach(s => drawShape(lctx, s));
+  if (current && current.type === 'pen') drawShape(lctx, current);
+}
+function drawTarget() {
+  ctx.save(); ctx.strokeStyle = '#0b6e7f'; ctx.lineWidth = 4; ctx.lineCap = ctx.lineJoin = 'round'; ctx.setLineDash([10, 9]); ctx.beginPath();
+  game.pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle = '#0b6e7f'; ctx.beginPath(); ctx.arc(game.pts[0].x, game.pts[0].y, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+}
+function render() {
+  paintLayer();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  if (state.grid) {
+    ctx.strokeStyle = '#e1e7ea'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 25; x < W; x += 25) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+    for (let y = 25; y < H; y += 25) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+    ctx.stroke();
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(layer, 0, 0); ctx.restore();
+  if (game) drawTarget();
+  if (current && current.type !== 'pen') {
+    drawShape(ctx, current, true);
+    ctx.save(); ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; const { x0, y0 } = current;
+    ctx.beginPath(); ctx.moveTo(x0 - 7, y0); ctx.lineTo(x0 + 7, y0); ctx.moveTo(x0, y0 - 7); ctx.lineTo(x0, y0 + 7); ctx.stroke(); ctx.restore();
+  }
+  if (hover && state.tool === 'eraser') {
+    ctx.save(); ctx.beginPath(); ctx.arc(hover.x, hover.y, eraserWidth(state.size) / 2, 0, Math.PI * 2);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#111'; ctx.stroke(); ctx.restore();
+  }
+}
+let raf = 0;
+const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+function fitCanvas() {
+  const r = canvas.getBoundingClientRect(); if (r.width < 10 || r.height < 10) return;
+  DPR = Math.min(window.devicePixelRatio || 1, 3); W = Math.round(r.width); H = Math.round(r.height);
+  [canvas, layer].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); });
+  if (game) game.pts = layoutTarget(game.unit);
+  render();
+}
+
+/* ---------- ONE STATE → every control ---------- */
+function penCursor() {
+  const d = Math.max(state.size + 6, 14), r = d / 2 + 1;
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${d + 2}" height="${d + 2}"><circle cx="${r}" cy="${r}" r="${d / 2}" fill="none" stroke="white" stroke-width="3"/><circle cx="${r}" cy="${r}" r="${d / 2}" fill="none" stroke="black" stroke-width="1.2"/><circle cx="${r}" cy="${r}" r="1" fill="black"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(s)}") ${r} ${r}, crosshair`;
+}
+function updateUI() {
+  const mark = (sel, test) => $$(sel).forEach(b => { const on = test(b); b.classList.toggle('sel', on); b.setAttribute(b.closest('.dropdown') ? 'aria-checked' : 'aria-pressed', on); });
+  mark('[data-tool]', b => b.dataset.tool === state.tool);
+  mark('[data-color]', b => b.dataset.color === state.color);
+  mark('[data-size]', b => +b.dataset.size === state.size);
+  ['fill','grid'].forEach(k => $$('.tool[data-act=' + k + ']').forEach(b => { b.classList.toggle('on', state[k]); b.setAttribute('aria-pressed', state[k]); }));
+  $('.custom').classList.toggle('sel', !state.colorKey);
+  $('#tb-colorname').textContent = colorName();
+  const n = countShapes();
+  $('#st-tool').textContent = t('toolL') + ': ' + t('tool_' + state.tool);
+  $('#st-color').innerHTML = '<i style="background:' + state.color + '"></i>' + t('colorL') + ': ' + colorName();
+  $('#st-size').textContent = t('thickL') + ': ' + sizeName();
+  $('#st-hint').textContent = game && !game.over ? t('h_game') : t('h_' + state.tool);
+  $('#st-count').textContent = t('shapesCount', n);
+  $$('[data-act=undo]').forEach(b => b.disabled = !state.shapes.length);
+  $$('[data-act=redo]').forEach(b => b.disabled = !state.redo.length);
+  $$('[data-act=clear]').forEach(b => b.disabled = n === 0);
+  $('#hint').classList.toggle('hide', n > 0 || !!current || !!game);
+  canvas.style.cursor = state.tool === 'eraser' ? 'none' : state.tool === 'pen' ? penCursor() : 'crosshair';
+  $('[data-act=theme]').innerHTML = svg(isDark() ? 'sun' : 'moon');
+  hudUpdate(); render();
+}
+let msgTimer;
+function say(key, ...a) {
+  const m = $('#st-msg'); m.textContent = t(key, ...a);
+  m.animate([{ opacity:0, transform:'translateY(5px)' }, { opacity:1, transform:'none' }], { duration:220 });
+  clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 9000);
+}
+
+/* ---------- LANGUAGE & THEME ---------- */
+function applyLang() {
+  document.documentElement.lang = LANG; document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
+  $$('[data-t]').forEach(e => e.textContent = t(e.dataset.t));
+  $$('[data-tt]').forEach(e => { const s = t(e.dataset.tt); e.title = s + (e.dataset.k ? ' (' + e.dataset.k + ')' : ''); e.setAttribute('aria-label', s); });
+  $$('[data-k]:not([data-tt])').forEach(e => e.title = e.textContent.trim() + ' (' + e.dataset.k + ')');
+  $('#lang').value = LANG; updateProgress(); updateUI();
+}
+const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+function toggleTheme() { const d = !isDark(); document.documentElement.dataset.theme = d ? 'dark' : 'light'; store.set('mb-theme', d ? 'dark' : 'light'); updateUI(); }
+
+/* ---------- COMMANDS ---------- */
+function setTool(k) { state.tool = k; hover = null; say('m_tool', t('tool_' + k)); updateUI(); }
+function setColor(hex, key) {
+  state.color = hex; state.colorKey = key || null; if (state.tool === 'eraser') state.tool = 'pen';
+  saveSettings(); say('m_color', colorName()); updateUI();
+}
+function setSize(n) { state.size = n; saveSettings(); say('m_size', t('size_' + SIZES.indexOf(n))); updateUI(); }
+function stepSize(d) { const i = Math.min(SIZES.length - 1, Math.max(0, SIZES.indexOf(state.size) + d)); setSize(SIZES[i]); }
+function toggle(k) { state[k] = !state[k]; saveSettings(); say('m_' + k, t(state[k] ? 'on' : 'off')); updateUI(); }
+function addShape(s) { state.shapes.push(s); state.redo = []; state.dirty = true; }
+function undo() {
+  if (!state.shapes.length) return say('m_noundo');
+  state.redo.push(state.shapes.pop()); state.dirty = true; if (game) game.idx = Math.min(game.idx, state.shapes.length);
+  say('m_undone'); updateUI();
+}
+function redo() { if (!state.redo.length) return say('m_noredo'); state.shapes.push(state.redo.pop()); state.dirty = true; say('m_restored'); updateUI(); }
+function clearBoard() {
+  if (!countShapes()) return say('m_empty');
+  addShape({ type:'clear' }); canvas.classList.remove('clearing'); void canvas.offsetWidth; canvas.classList.add('clearing');
+  updateUI(); say('m_cleared'); toast('t_cleared', 'undo', () => { undo(); hideToast(); });
+}
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+function exportBlob(cb) { /* PNG without grid, target or previews, on a white sheet */
+  paintLayer(); const o = document.createElement('canvas'); o.width = layer.width; o.height = layer.height;
+  const c = o.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, o.width, o.height); c.drawImage(layer, 0, 0); o.toBlob(cb, 'image/png');
+}
+function savePNG() {
+  exportBlob(b => download(b, 'magic-board-' + stamp() + '.png'));
+  const kept = store.set('mb-project', visibleShapes()); state.dirty = false; say(kept ? 'm_png' : 'm_png2');
+}
+function saveProject() {
+  download(new Blob([JSON.stringify({ app:'magic-board', version:4, shapes:visibleShapes() })], { type:'application/json' }), 'magic-board-' + stamp() + '.json');
+  state.dirty = false; say('m_proj');
+}
+function copyImage() {
+  exportBlob(async b => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png':b })]); say('m_copied'); } catch (e) { say('m_copyfail'); } });
+}
+function shareImage() {
+  exportBlob(async b => {
+    const f = new File([b], 'magic-board.png', { type:'image/png' });
+    try { await navigator.share({ files:[f], title:'Magic Board' }); say('m_shared'); } catch (e) { if (e.name !== 'AbortError') say('m_sharefail'); }
+  });
+}
+/* Open a picture (PNG/JPG…) or a Magic Board project (.json) */
+function openFile(file) {
+  if (!file) return; const reader = new FileReader();
+  if (/\.json$/i.test(file.name) || file.type === 'application/json') {
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result), raw = Array.isArray(data) ? data : data.shapes;
+        if (!Array.isArray(raw)) throw 0;
+        const list = raw.map(clean).filter(Boolean); if (!list.length) throw 0;
+        addShape({ type:'project', shapes:list }); state.dirty = false; updateUI();
+        say('m_opened', file.name); toast('t_opened', 'undo', () => { undo(); hideToast(); });
+      } catch (e) { say('m_bad'); }
+    };
+    reader.readAsText(file);
+  } else if (file.type.startsWith('image/')) {
+    reader.onload = () => { const s = clean({ type:'image', src:reader.result }); if (!s) return say('m_badtype'); addShape(s); updateUI(); say('m_pic'); };
+    reader.readAsDataURL(file);
+  } else say('m_badtype');
+}
+function newBoard() { state.shapes = []; state.redo = []; state.dirty = false; game = null; clearInterval(gameTimer); $('#goodbye').hidden = true; say('m_ready'); updateUI(); }
+function doExit() { state.dirty = false; if (game) closeGame(true); window.close(); $('#goodbye').hidden = false; $('#restart').focus(); }
+function requestExit() { state.dirty ? $('#dlg-exit').showModal() : doExit(); }
+$('#dlg-exit').addEventListener('click', e => {
+  const k = e.target.dataset.exit; if (!k) return; $('#dlg-exit').close();
+  if (k === 'save') { savePNG(); doExit(); } else if (k === 'discard') doExit(); else say('m_back');
+});
+$('#dlg-exit').addEventListener('cancel', () => say('m_back'));
+$$('dialog').forEach(d => d.addEventListener('click', e => { if (e.target.hasAttribute('data-close') || e.target === d) d.close(); }));
+$('#restart').addEventListener('click', newBoard);
+
+let toastTimer;
+function toast(key, labelKey, fn) {
+  const el = $('#toast'); el.textContent = t(key);
+  if (labelKey) { const b = document.createElement('button'); b.textContent = t(labelKey); b.onclick = fn; el.append(b); }
+  el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 6000);
+}
+const hideToast = () => $('#toast').classList.remove('show');
+function fullscreen() { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
+
+/* ---------- TRACE GAME ---------- */
+let gameTimer = 0;
+const GAME_MS = 30000;
+const densify = (pts, step) => { const out = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / step)); for (let k = 0; k < n; k++) out.push({ x:a.x + (b.x - a.x) * k / n, y:a.y + (b.y - a.y) * k / n }); } out.push(pts[pts.length - 1]); return out; };
+const UNIT = {
+  circle: () => Array.from({ length:97 }, (_, i) => ({ x:Math.cos(i / 96 * 2 * Math.PI - Math.PI / 2), y:Math.sin(i / 96 * 2 * Math.PI - Math.PI / 2) })),
+  square: () => densify([[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]].map(([x, y]) => ({ x:x * .9, y:y * .9 })), .05),
+  triangle: () => densify([{ x:0, y:-1 }, { x:1, y:.8 }, { x:-1, y:.8 }, { x:0, y:-1 }], .05),
+  star: () => densify([...Array.from({ length:10 }, (_, i) => { const r = i % 2 ? .42 : 1, a = i * Math.PI / 5 - Math.PI / 2; return { x:r * Math.cos(a), y:r * Math.sin(a) + .06 }; }), { x:0, y:-.94 }], .05),
+  heart: () => Array.from({ length:121 }, (_, i) => { const a = i / 120 * 2 * Math.PI; return { x:16 * Math.sin(a) ** 3 / 17, y:-(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 17 + .08 }; })
+};
+function layoutTarget(unit) { const s = Math.min(W, H) * .3, cx = W / 2, cy = H / 2 + 34; return unit.map(p => ({ x:cx + p.x * s, y:cy + p.y * s })); }
+function startGame() {
+  const kinds = Object.keys(UNIT), kind = kinds[Math.floor(Math.random() * kinds.length)];
+  if (countShapes()) { addShape({ type:'clear' }); toast('t_game', 'undo', () => { undo(); hideToast(); }); }
+  state.tool = 'pen'; current = null; clearInterval(gameTimer);
+  const unit = UNIT[kind]();
+  game = { kind, unit, pts:layoutTarget(unit), start:performance.now(), idx:state.shapes.length, over:false, score:0 };
+  gameTimer = setInterval(tick, 200); say('m_gstart'); updateUI();
+}
+function userPoints(list) {
+  const out = [];
+  list.forEach(s => s.points.forEach((a, i, arr) => {
+    out.push(a); const b = arr[i + 1]; if (!b) return;
+    const n = Math.floor(Math.hypot(b.x - a.x, b.y - a.y) / 4);
+    for (let k = 1; k <= n; k++) out.push({ x:a.x + (b.x - a.x) * k / (n + 1), y:a.y + (b.y - a.y) * k / (n + 1) });
+  }));
+  return out;
+}
+function scoreGame() {
+  const user = userPoints(state.shapes.slice(game.idx).filter(s => s.type === 'pen' && !s.erase)); if (!user.length) return 0;
+  const tol = 18, near = (p, list, r) => list.some(q => Math.hypot(p.x - q.x, p.y - q.y) <= r);
+  const cover = game.pts.filter(p => near(p, user, tol)).length / game.pts.length;
+  const precise = user.filter(p => near(p, game.pts, tol * 1.4)).length / user.length;
+  return Math.round(100 * cover * precise);
+}
+function finishGame() {
+  if (!game || game.over) return;
+  clearInterval(gameTimer); game.score = scoreGame(); game.over = true;
+  const best = Math.max(game.score, store.get('mb-best') || 0); store.set('mb-best', best); game.best = best;
+  current = null; say('m_gend', game.score); updateUI();
+}
+function closeGame(silent) { clearInterval(gameTimer); game = null; if (!silent) say('m_gclosed'); updateUI(); }
+function tick() {
+  if (!game || game.over) return;
+  const left = Math.max(0, GAME_MS - (performance.now() - game.start)), s = Math.ceil(left / 1000);
+  $('#hud-time').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  $('#hud-bar').style.width = left / GAME_MS * 100 + '%';
+  if (left <= 0) finishGame();
+}
+function hudUpdate() {
+  const h = $('#hud'); h.hidden = !game; if (!game) return;
+  h.dataset.mode = game.over ? 'done' : 'run';
+  if (game.over) {
+    $('#hud-title').textContent = t('gScore', game.score);
+    $('#hud-sub').textContent = t(game.score >= 85 ? 'gV3' : game.score >= 65 ? 'gV2' : game.score >= 40 ? 'gV1' : 'gV0') + ' · ' + t('gBest', game.best);
+    $('#hud-time').textContent = ''; $('#hud-bar').style.width = '0%';
+  } else { $('#hud-title').textContent = t('gameT', t('shape_' + game.kind)); $('#hud-sub').textContent = t('h_game'); tick(); }
+}
+
+/* ---------- BUILD CONTROLS (toolbar + menus from the same data) ---------- */
+TOOLS.forEach(k => {
+  const key = k === 'rect' ? 'R' : k[0].toUpperCase();
+  const b = document.createElement('button'); b.className = 'tool'; b.dataset.tool = k; b.dataset.tt = 'tool_' + k; b.dataset.k = key;
+  b.innerHTML = svg(k) + '<span data-t="tool_' + k + '"></span>'; $(k === 'pen' || k === 'eraser' ? '#tb-draw' : '#tb-shapes').append(b);
+  const m = document.createElement('button'); m.dataset.tool = k; m.setAttribute('role', 'menuitemradio');
+  m.innerHTML = svg(k) + '<span data-t="tool_' + k + '"></span><kbd>' + key + '</kbd>'; $('#menu-shapes').append(m);
+});
+COLORS.forEach((hex, i) => {
+  const s = document.createElement('button'); s.className = 'swatch'; s.dataset.color = hex; s.dataset.key = 'col_' + i; s.dataset.tt = 'col_' + i;
+  s.style.background = hex; s.style.setProperty('--tick', lum(hex) > .35 ? '#111' : '#fff'); $('#tb-colors').append(s);
+  const m = document.createElement('button'); m.dataset.color = hex; m.dataset.key = 'col_' + i; m.setAttribute('role', 'menuitemradio');
+  m.innerHTML = '<i class="sw" style="background:' + hex + '"></i><span data-t="col_' + i + '"></span>'; $('#menu-colors').append(m);
+});
+const mc = document.createElement('label'); mc.className = 'menu-custom';
+mc.innerHTML = '<span data-t="custom"></span><input type="color" id="menu-custom" value="#ff6600">'; $('#menu-colors').append(mc);
+SIZES.forEach((n, i) => {
+  const b = document.createElement('button'); b.className = 'tool'; b.dataset.size = n; b.dataset.tt = 'size_' + i;
+  b.innerHTML = '<i class="size-dot" style="width:' + (n + 4) + 'px;height:' + (n + 4) + 'px"></i><span data-t="size_' + i + '"></span>'; $('#tb-size').append(b);
+});
+$$('[data-i]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.dataset.i)));
+if (!(navigator.clipboard && window.ClipboardItem)) $$('[data-act=copy]').forEach(b => b.disabled = true);
+if (!(navigator.share && navigator.canShare)) $$('[data-act=share]').forEach(b => b.disabled = true);
+
+/* ---------- MENUS (mouse + keyboard) ---------- */
+const menus = () => $$('.menu'), menuItems = m => $$('.dropdown button:not(:disabled)', m);
+function closeMenus() { menus().forEach(m => { m.classList.remove('open'); $('.menu-btn', m).setAttribute('aria-expanded', 'false'); }); }
+function openMenu(m, focusFirst) { closeMenus(); m.classList.add('open'); $('.menu-btn', m).setAttribute('aria-expanded', 'true'); if (focusFirst) menuItems(m)[0]?.focus(); }
+$$('.menu-btn').forEach(b => b.addEventListener('mouseenter', () => { if ($('.menu.open') && !b.parentElement.classList.contains('open')) openMenu(b.parentElement); }));
+$('.menus').addEventListener('keydown', e => {
+  const m = e.target.closest('.menu'); if (!m) return;
+  const open = m.classList.contains('open'), list = menuItems(m), i = list.indexOf(document.activeElement), all = menus();
+  const side = d => { const n = all[(all.indexOf(m) + d + all.length) % all.length]; open ? openMenu(n, true) : $('.menu-btn', n).focus(); };
+  const rtl = document.documentElement.dir === 'rtl';
+  if (e.key === 'ArrowDown') { e.preventDefault(); open ? list[(i + 1) % list.length]?.focus() : openMenu(m, true); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (open) list[(i - 1 + list.length) % list.length]?.focus(); else { openMenu(m); menuItems(m).at(-1)?.focus(); } }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); side(rtl ? -1 : 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); side(rtl ? 1 : -1); }
+  else if (e.key === 'Home' && open) { e.preventDefault(); list[0]?.focus(); }
+  else if (e.key === 'End' && open) { e.preventDefault(); list.at(-1)?.focus(); }
+  else if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); closeMenus(); $('.menu-btn', m).focus(); }
+});
+
+/* ---------- EVENTS ---------- */
+const ACTIONS = { undo, redo, clear:clearBoard, save:savePNG, project:saveProject, copy:copyImage, share:shareImage, open:() => $('#file').click(), exit:requestExit,
+  help:() => $('#dlg-guide').showModal(), notes:() => $('#dlg-notes').showModal(), theme:toggleTheme, full:fullscreen, fill:() => toggle('fill'), grid:() => toggle('grid'),
+  trace:startGame, gstop:finishGame, gclose:() => closeGame() };
+document.addEventListener('click', e => {
+  if (e.target.closest('.dropdown input, .dropdown label')) return;
+  const btn = e.target.closest('.menu-btn');
+  if (btn) { const m = btn.parentElement, was = m.classList.contains('open'); closeMenus(); if (!was) openMenu(m, e.detail === 0); return; }
+  closeMenus();
+  const el = e.target.closest('button'); if (!el || el.disabled) return;
+  if (el.dataset.tool) setTool(el.dataset.tool); else if (el.dataset.color) setColor(el.dataset.color, el.dataset.key);
+  else if (el.dataset.size) setSize(+el.dataset.size); else if (el.dataset.act) ACTIONS[el.dataset.act]();
+});
+['#custom-color', '#menu-custom'].forEach(sel => $(sel).addEventListener('input', e => { $('#custom-color').value = $('#menu-custom').value = e.target.value; setColor(e.target.value); }));
+$('#file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('#lang').addEventListener('change', e => { LANG = e.target.value; store.set('mb-lang', LANG); applyLang(); say('m_ready'); });
+['dragover', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop') openFile(e.dataTransfer.files[0]); }));
+
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || $('dialog[open]') || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (e.ctrlKey || e.metaKey) { const map = { z:e.shiftKey ? redo : undo, y:redo, s:savePNG, q:requestExit, o:ACTIONS.open }; if (map[k]) { e.preventDefault(); map[k](); } return; }
+  if (KEYS[k]) setTool(KEYS[k]);
+  else if (k === 'f') toggle('fill'); else if (k === 'g') toggle('grid'); else if (k === 't') startGame();
+  else if (k === '[') stepSize(-1); else if (k === ']') stepSize(1); else if (k === '?') $('#dlg-guide').showModal();
+  else if (k === 'escape' && game) closeGame();
+});
+const pos = e => { const r = canvas.getBoundingClientRect(); return { x: Math.round((e.clientX - r.left) * 10) / 10, y: Math.round((e.clientY - r.top) * 10) / 10 }; };
+const tiny = s => (s.type === 'line' || s.type === 'circle') ? Math.hypot(s.x1 - s.x0, s.y1 - s.y0) < 4 : s.type === 'rect' ? Math.abs(s.x1 - s.x0) < 4 || Math.abs(s.y1 - s.y0) < 4 : false;
+canvas.addEventListener('pointerdown', e => {
+  if (e.button > 0 || current) return; canvas.setPointerCapture(e.pointerId); const p = pos(e), er = state.tool === 'eraser';
+  current = { type: er ? 'pen' : state.tool, erase: er, color: state.color, size: state.size, fill: state.fill && ['rect','circle'].includes(state.tool), x0:p.x, y0:p.y, x1:p.x, y1:p.y, points:[p] };
+  closeMenus(); say('m_draw'); $('#hint').classList.add('hide'); render();
+});
+canvas.addEventListener('pointermove', e => {
+  const p = pos(e); hover = e.pointerType === 'touch' ? null : p;
+  $('#st-pos').textContent = 'x ' + Math.round(p.x) + '  y ' + Math.round(p.y);
+  if (current) {
+    current.x1 = p.x; current.y1 = p.y;
+    if (current.type === 'pen') { const l = current.points[current.points.length - 1]; if (Math.hypot(p.x - l.x, p.y - l.y) >= 1.2) current.points.push(p); }
+  }
+  if (current || state.tool === 'eraser') schedule();
+});
+const finish = () => {
+  if (!current) return; const s = current; current = null;
+  if (tiny(s)) { say('m_tiny', t('tool_' + state.tool).toLowerCase()); return updateUI(); }
+  addShape(s); say(s.erase ? 'm_erased' : 'm_added'); updateUI();
+};
+canvas.addEventListener('pointerup', finish); canvas.addEventListener('pointercancel', finish);
+canvas.addEventListener('pointerleave', () => { hover = null; $('#st-pos').textContent = ''; schedule(); });
+new ResizeObserver(fitCanvas).observe(canvas);
+window.addEventListener('beforeunload', e => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- DESIGN NOTES & TEST (saved in this browser) ---------- */
+const checks = store.get('mb-checks') || {};
+function updateProgress() { $$('[data-prog]').forEach(p => { const boxes = $$('[data-chk^="' + p.dataset.prog + '"]'); p.textContent = t('progress', boxes.filter(b => b.checked).length, boxes.length); }); }
+$$('[data-chk]').forEach(b => { b.checked = !!checks[b.dataset.chk]; b.addEventListener('change', () => { checks[b.dataset.chk] = b.checked; store.set('mb-checks', checks); updateProgress(); }); });
+$('#notes-text').value = store.get('mb-notes') || ''; $('#notes-text').addEventListener('input', e => store.set('mb-notes', e.target.value));
+$$('[data-tab]').forEach(tab => tab.addEventListener('click', () => {
+  $$('[data-tab]').forEach(o => { const on = o === tab; o.setAttribute('aria-selected', on); o.tabIndex = on ? 0 : -1; $('#' + o.getAttribute('aria-controls')).hidden = !on; });
+}));
+$('.tabs').addEventListener('keydown', e => {
+  const tabs = $$('[data-tab]'), i = tabs.indexOf(document.activeElement), d = { ArrowRight:1, ArrowLeft:-1 }[e.key]; if (i < 0 || !d) return;
+  const n = tabs[(i + (document.documentElement.dir === 'rtl' ? -d : d) + tabs.length) % tabs.length]; n.focus(); n.click();
+});
+
+(function init() {
+  const th = store.get('mb-theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th;
+  const s = store.get('mb-settings');
+  if (s) Object.assign(state, { color:/^#[0-9a-f]{6}$/i.test(s.color) ? s.color : state.color, colorKey:s.key || null, size:SIZES.includes(s.size) ? s.size : 6, fill:!!s.fill, grid:!!s.grid });
+  const saved = store.get('mb-project'), list = Array.isArray(saved) ? saved.map(clean).filter(Boolean) : [];
+  if (list.length) state.shapes = list;
+  applyLang(); fitCanvas();
+  if (list.length) { say('m_saved'); toast('t_restored', 'newBoard', () => { clearBoard(); }); } else say('m_ready');
+})();
+
+</script>
+</body>
+</html>
